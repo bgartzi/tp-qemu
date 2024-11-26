@@ -1,7 +1,11 @@
+import re
 import time
+import logging
 
 from virttest import error_context, utils_test
 
+
+LOG = logging.getLogger(__name__)
 
 @error_context.context_aware
 def run(test, params, env):
@@ -16,38 +20,22 @@ def run(test, params, env):
     :param params: Dictionary with the test parameters
     :param env: Dictionary with test environment.
     """
+    regexp_vbs_enabled = re.compile("VirtualizationBasedSecurityStatus\s*:\s*2")
+    def runningVBS(session):
+        output = session.cmd_output('powershell -command "get-CimInstance -classname win32_deviceguard -namespace root\microsoft\windows\deviceguard"')
+        LOG.info(output)
+        return regexp_vbs_enabled.search(output) is not None
 
     timeout = float(params.get("login_timeout", 240))
     serial_login = params.get("serial_login", "no") == "yes"
     vms = env.get_all_vms()
-    for vm in vms:
-        error_context.context("Try to log into guest '%s'." % vm.name, test.log.info)
-        if serial_login:
-            session = vm.wait_for_serial_login(timeout=timeout)
-        else:
-            session = vm.wait_for_login(timeout=timeout)
-        session.close()
-
-    if params.get("rh_perf_envsetup_script"):
-        for vm in vms:
-            if serial_login:
-                session = vm.wait_for_serial_login(timeout=timeout)
-            else:
-                session = vm.wait_for_login(timeout=timeout)
-            utils_test.service_setup(vm, session, test.virtdir)
-            session.close()
-    if params.get("reboot_method"):
-        for vm in vms:
-            error_context.context("Reboot guest '%s'." % vm.name, test.log.info)
-            if params["reboot_method"] == "system_reset":
-                time.sleep(int(params.get("sleep_before_reset", 10)))
-            # Reboot the VM
-            if serial_login:
-                session = vm.wait_for_serial_login(timeout=timeout)
-            else:
-                session = vm.wait_for_login(timeout=timeout)
-            for i in range(int(params.get("reboot_count", 1))):
-                session = vm.reboot(
-                    session, params["reboot_method"], 0, timeout, serial_login
-                )
-            session.close()
+    assert len(vms) == 1, "Only one VM supported on this test"
+    vm = vms[0]
+    error_context.context("Try to log into guest '%s'." % vm.name, test.log.info)
+    if serial_login:
+        session = vm.wait_for_serial_login(timeout=timeout)
+    else:
+        session = vm.wait_for_login(timeout=timeout)
+    if not runningVBS(session):
+        test.fail("VBS not running")
+    session.close()
