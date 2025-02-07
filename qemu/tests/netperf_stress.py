@@ -187,6 +187,8 @@ def run(test, params, env):
     client_path_linux = params.get("client_path", "/var/tmp")
     server_path_win = params.get("server_path_win", "c:\\")
     client_path_win = params.get("client_path_win", "c:\\")
+    server_max_cpus = params.get_numeric("netperf_server_max_cpus", default=None)
+    client_max_cpus = params.get_numeric("netperf_client_max_cpus", default=None)
 
     netperf_clients = []
     netperf_servers = []
@@ -211,6 +213,7 @@ def run(test, params, env):
             linesep=c_info["linesep"],
             status_test_command=c_info["status_test_command"],
             compile_option=compile_option_client,
+            max_cpus=client_max_cpus,
         )
         netperf_clients.append(n_client)
 
@@ -235,6 +238,7 @@ def run(test, params, env):
             linesep=s_info["linesep"],
             status_test_command=s_info["status_test_command"],
             compile_option=compile_option_server,
+            max_cpus=server_max_cpus,
         )
         netperf_servers.append(n_server)
 
